@@ -10,7 +10,7 @@
 	"migrations": [
 		{
 			"new_sqlite_classes": [
-				"DurableObjects"
+				"ZK_server"
 			],
 			"tag": "v1"
 		}
@@ -25,6 +25,11 @@
 	},
 	"observability": {
 		"enabled": true
+	},
+	"triggers": {
+		"crons": [
+			"0 0 * * *"
+		]
 	}
 	/**
 	 * Smart Placement

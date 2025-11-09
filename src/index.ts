@@ -53,6 +53,17 @@ export class ZK_server extends DurableObject<Env> {
 		return key;
 	}
 
+	async cleanupExpired(): Promise<void> {
+		// storage.list() 返回的是 Promise<Map<string, unknown>>
+		const all = await this.ctx.storage.list(); // Map<string, unknown>
+		for (const [key, value] of all) {
+			const msg = value as Message;
+			if (msg.expireDate && new Date(msg.expireDate) < new Date()) {
+				await this.ctx.storage.delete(key);
+			}
+		}
+	}
+
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url)
 		switch (request.method) {
@@ -67,6 +78,10 @@ export class ZK_server extends DurableObject<Env> {
 			case "GET": {
 				const data: Message = await this.get((new URL(request.url)).pathname.slice(1))
 				return new Response(JSON.stringify(data), { headers: CORS_HEADERS });
+			}
+			case "DELETE": {
+				await this.cleanupExpired();
+				return new Response(null);
 			}
 			default:
 				return new Response(null);
@@ -113,6 +128,14 @@ export default {
 		const stub = env.ZK_CRYPTO_MESSAGES.get(id)
 		return await stub.fetch(request)
 
+	},
+
+	async scheduled(controller: ScheduledController, env: Env) {
+		// 直接 await 异步任务即可
+		const id = env.ZK_CRYPTO_MESSAGES.idFromName("global");
+		const stub = env.ZK_CRYPTO_MESSAGES.get(id);
+
+		await stub.fetch(new Request("", { method: "DELETE" }));
 	}
 
 } satisfies ExportedHandler<Env>;
