@@ -37,7 +37,7 @@ export class ZK_server extends DurableObject<Env> {
 			};
 		}
 
-		if (data.burnAfterRead || data.expireDate && new Date(data.expireDate) < new Date() || Number.isNaN(new Date(data.content).getTime())) {
+		if (data.burnAfterRead) {
 			await this.ctx.storage.delete(name);
 		}
 
@@ -45,10 +45,14 @@ export class ZK_server extends DurableObject<Env> {
 	}
 
 	async put(info: Message): Promise<string> {
-		const json = JSON.stringify(info);
+		const param = info
+		if (!Number.isNaN(new Date(info.expireDate).getTime())) {
+			param.expireDate = new Date().toDateString()
+		}
+		const json = JSON.stringify(param);
 		const key = await this.sha1Hex(json);
 
-		await this.ctx.storage.put(key, info);
+		await this.ctx.storage.put(key, param);
 
 		return key;
 	}
@@ -57,7 +61,7 @@ export class ZK_server extends DurableObject<Env> {
 		const all = await this.ctx.storage.list();
 		for (const [key, value] of all) {
 			const msg = value as Message;
-			if (msg.expireDate && new Date(msg.expireDate) < new Date() || Number.isNaN(new Date(msg.content).getTime())) {
+			if (msg.expireDate && new Date(msg.expireDate) < new Date()) {
 				await this.ctx.storage.delete(key);
 			}
 		}

@@ -2,12 +2,12 @@ import requests
 import json
 
 # Worker URL（替换成你的实际 Worker URL）
-WORKER_URL = "http://localhost:8787"
+WORKER_URL = "http://secret-post.3ns76ymur.workers.dev"
 
 # 要发送的消息
 message = {
-    "content": "Hello World from Python!",
-    "expireDate": "2025-11-10",
+    "content": "Hello World",
+    "expireDate": "2025-12-10",
     "burnAfterRead": False
 }
 
