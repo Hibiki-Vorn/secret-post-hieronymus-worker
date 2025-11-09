@@ -37,7 +37,7 @@ export class ZK_server extends DurableObject<Env> {
 			};
 		}
 
-		if (data.burnAfterRead) {
+		if (data.burnAfterRead || data.expireDate && new Date(data.expireDate) < new Date() || Number.isNaN(new Date(data.content).getTime())) {
 			await this.ctx.storage.delete(name);
 		}
 
@@ -54,11 +54,10 @@ export class ZK_server extends DurableObject<Env> {
 	}
 
 	async cleanupExpired(): Promise<void> {
-		// storage.list() 返回的是 Promise<Map<string, unknown>>
-		const all = await this.ctx.storage.list(); // Map<string, unknown>
+		const all = await this.ctx.storage.list();
 		for (const [key, value] of all) {
 			const msg = value as Message;
-			if (msg.expireDate && new Date(msg.expireDate) < new Date()) {
+			if (msg.expireDate && new Date(msg.expireDate) < new Date() || Number.isNaN(new Date(msg.content).getTime())) {
 				await this.ctx.storage.delete(key);
 			}
 		}
@@ -80,6 +79,7 @@ export class ZK_server extends DurableObject<Env> {
 				return new Response(JSON.stringify(data), { headers: CORS_HEADERS });
 			}
 			case "DELETE": {
+				if (url.hostname !== "internal") return new Response("Forbidden", { status: 403 });
 				await this.cleanupExpired();
 				return new Response(null);
 			}
@@ -131,7 +131,6 @@ export default {
 	},
 
 	async scheduled(controller: ScheduledController, env: Env) {
-		// 直接 await 异步任务即可
 		const id = env.ZK_CRYPTO_MESSAGES.idFromName("global");
 		const stub = env.ZK_CRYPTO_MESSAGES.get(id);
 
