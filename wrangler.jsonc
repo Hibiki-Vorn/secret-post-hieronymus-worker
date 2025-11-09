@@ -4,13 +4,13 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "durable-object-starter",
+	"name": "secret-post-worker",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-09",
 	"migrations": [
 		{
 			"new_sqlite_classes": [
-				"MyDurableObject"
+				"DurableObjects"
 			],
 			"tag": "v1"
 		}
@@ -18,8 +18,8 @@
 	"durable_objects": {
 		"bindings": [
 			{
-				"class_name": "MyDurableObject",
-				"name": "MY_DURABLE_OBJECT"
+				"class_name": "ZK_server",
+				"name": "ZK_CRYPTO_MESSAGES"
 			}
 		]
 	},

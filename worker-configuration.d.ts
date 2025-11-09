@@ -7,10 +7,11 @@ declare namespace Cloudflare {
 		durableNamespaces: "MyDurableObject";
 	}
 	interface Env {
-		MY_DURABLE_OBJECT: DurableObjectNamespace<import("./src/index").MyDurableObject>;
+		ZK_CRYPTO_MESSAGES: DurableObjectNamespace<import("./src/index").MyDurableObject>;
 	}
 }
-interface Env extends Cloudflare.Env {}
+interface Env extends Cloudflare.Env {
+}
 
 // Begin runtime types
 /*! *****************************************************************************

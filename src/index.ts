@@ -14,29 +14,81 @@ import { DurableObject } from "cloudflare:workers";
  */
 
 /** A Durable Object's behavior is defined in an exported Javascript class */
-export class MyDurableObject extends DurableObject<Env> {
-	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier (no-op constructors can be omitted)
-	 *
-	 * @param ctx - The interface for interacting with Durable Object state
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
-	 */
+
+interface Message {
+	content: string;
+	expireDate: string;
+	burnAfterRead: boolean;
+}
+
+export class ZK_server extends DurableObject<Env> {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 	}
 
-	/**
-	 * The Durable Object exposes an RPC method sayHello which will be invoked when when a Durable
-	 *  Object instance receives a request from a Worker via the same method invocation on the stub
-	 *
-	 * @param name - The name provided to a Durable Object instance from a Worker
-	 * @returns The greeting to be sent back to the Worker
-	 */
-	async sayHello(name: string): Promise<string> {
-		return `Hello, ${name}!`;
+	async get(name: string): Promise<Message> {
+		let data: Message | undefined = await this.ctx.storage.get(name);
+
+		if (!data) {
+			return {
+				content: "",
+				expireDate: "",
+				burnAfterRead: false
+			};
+		}
+
+		if (data.burnAfterRead) {
+			await this.ctx.storage.delete(name);
+		}
+
+		return data;
+	}
+
+	async put(info: Message): Promise<string> {
+		const json = JSON.stringify(info);
+		const key = await this.sha1Hex(json);
+
+		await this.ctx.storage.put(key, info);
+
+		return key;
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url)
+		switch (request.method) {
+			case "OPTIONS":
+				return new Response(null, { headers: CORS_HEADERS });
+
+			case "POST": {
+				const req = ((await request.json()) as Message)
+				const notation = await this.put(req)
+				return new Response(notation, { headers: CORS_HEADERS });
+			}
+			case "GET": {
+				const data: Message = await this.get((new URL(request.url)).pathname.slice(1))
+				return new Response(JSON.stringify(data), { headers: CORS_HEADERS });
+			}
+			default:
+				return new Response(null);
+		}
+	}
+
+	private async sha1Hex(input: string): Promise<string> {
+		const buffer = await crypto.subtle.digest(
+			"SHA-1",
+			new TextEncoder().encode(input)
+		);
+		return Array.from(new Uint8Array(buffer))
+			.map(b => b.toString(16).padStart(2, "0"))
+			.join("");
 	}
 }
+
+const CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type",
+};
 
 export default {
 	/**
@@ -53,12 +105,14 @@ export default {
 		//
 		// Requests from all Workers to the Durable Object instance named "foo"
 		// will go to a single remote Durable Object instance.
-		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
 
 		// Call the `sayHello()` RPC method on the stub to invoke the method on
 		// the remote Durable Object instance.
-		const greeting = await stub.sayHello("world");
 
-		return new Response(greeting);
-	},
+		const id = env.ZK_CRYPTO_MESSAGES.idFromName("global");
+		const stub = env.ZK_CRYPTO_MESSAGES.get(id)
+		return await stub.fetch(request)
+
+	}
+
 } satisfies ExportedHandler<Env>;
