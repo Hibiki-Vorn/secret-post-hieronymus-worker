@@ -46,8 +46,8 @@ export class ZK_server extends DurableObject<Env> {
 
 	async put(info: Message): Promise<string> {
 		const param = info
-		if (!Number.isNaN(new Date(info.expireDate).getTime())) {
-			param.expireDate = new Date().toDateString()
+		if (Number.isNaN(new Date(info.expireDate).getTime())) {
+			param.expireDate = new Date().toISOString()
 		}
 		const json = JSON.stringify(param);
 		const key = await this.sha1Hex(json);
@@ -58,13 +58,13 @@ export class ZK_server extends DurableObject<Env> {
 	}
 
 	async cleanupExpired(): Promise<void> {
-		const all = await this.ctx.storage.list();
-		for (const [key, value] of all) {
+		for await (const [key, value] of await this.ctx.storage.list()) {
 			const msg = value as Message;
 			if (msg.expireDate && new Date(msg.expireDate) < new Date()) {
 				await this.ctx.storage.delete(key);
 			}
 		}
+
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -83,7 +83,6 @@ export class ZK_server extends DurableObject<Env> {
 				return new Response(JSON.stringify(data), { headers: CORS_HEADERS });
 			}
 			case "DELETE": {
-				if (url.hostname !== "internal") return new Response("Forbidden", { status: 403 });
 				await this.cleanupExpired();
 				return new Response(null);
 			}
@@ -94,7 +93,7 @@ export class ZK_server extends DurableObject<Env> {
 
 	private async sha1Hex(input: string): Promise<string> {
 		const buffer = await crypto.subtle.digest(
-			"SHA-1",
+			"SHA-256",
 			new TextEncoder().encode(input)
 		);
 		return Array.from(new Uint8Array(buffer))
