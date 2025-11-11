@@ -58,13 +58,21 @@ export class ZK_server extends DurableObject<Env> {
 	}
 
 	async cleanupExpired(): Promise<void> {
-		for await (const [key, value] of await this.ctx.storage.list()) {
-			const msg = value as Message;
-			if (msg.expireDate && new Date(msg.expireDate) < new Date()) {
-				await this.ctx.storage.delete(key);
+		console.log("Cleanup started")
+		const list = await this.ctx.storage.list()
+		try {
+			for await (const [key, value] of list) {
+				const msg = value as Message;
+				if (msg.expireDate && new Date(msg.expireDate) < new Date()) {
+					await this.ctx.storage.delete(key);
+				}
 			}
-		}
 
+		} catch (error) {
+			console.error(error)
+		} finally {
+			console.log("Cleanup finished")
+		}
 	}
 
 	async fetch(request: Request): Promise<Response> {
@@ -83,6 +91,10 @@ export class ZK_server extends DurableObject<Env> {
 				return new Response(JSON.stringify(data), { headers: CORS_HEADERS });
 			}
 			case "DELETE": {
+				if ((new URL(request.url)).pathname !== "/cleanup") {
+					console.log("invaild request")
+				}
+				console.log("Scheduled trigger fired");
 				await this.cleanupExpired();
 				return new Response(null);
 			}
@@ -136,8 +148,9 @@ export default {
 	async scheduled(controller: ScheduledController, env: Env) {
 		const id = env.ZK_CRYPTO_MESSAGES.idFromName("global");
 		const stub = env.ZK_CRYPTO_MESSAGES.get(id);
+		console.log("Scheduled start");
 
-		await stub.fetch(new Request("", { method: "DELETE" }));
+		await stub.fetch(new Request("/cleanup", { method: "DELETE" }));
 	}
 
 } satisfies ExportedHandler<Env>;
